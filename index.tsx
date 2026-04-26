@@ -1,5 +1,6 @@
 import {
   Button,
+  Color,
   HStack,
   Icon,
   Modifier,
@@ -100,7 +101,7 @@ function Cell({row, col, isActive, isOnPlayhead, size}: {
     ? COLOR_CELL_PLAYHEAD
     : isActive ? COLOR_CELL_ACTIVE : COLOR_CELL_DEFAULT;
   return (
-    <Button fast intent={app.toggleCell(row, col)} frame={{width: size, height: size}}>
+    <Button fast audio intent={app.toggleCell(row, col)} frame={{width: size, height: size}}>
       <RoundedRectangle rectRadius={CELL_RADIUS} fill={fill}/>
     </Button>
   );
@@ -134,13 +135,27 @@ function Row({row, cells, playStep, cellSize}: {
   );
 }
 
+function SweepBar({x, width}: {x: number; width: number}) {
+  return (
+    <Color
+      id='sweepbar'
+      value={COLOR_CELL_PLAYHEAD}
+      opacity={0.55}
+      frame={{width}}
+      maxHeight
+      offset={{x}}
+      animation={{type: 'linear', duration: 2}}
+    />
+  );
+}
+
 function IconButton({iconName, intent, size}: {
   iconName: string;
   intent: IntentInfo;
   size: number;
 }) {
   return (
-    <Button fast intent={intent} frame={{width: size, height: size}}>
+    <Button fast audio intent={intent} frame={{width: size, height: size}}>
       <ZStack>
         <RoundedRectangle rectRadius={size / 4} fill={COLOR_BUTTON_BG}/>
         <Icon value={iconName} fontSize={size * 0.5}/>
@@ -175,14 +190,25 @@ function widget(entry: WidgetEntry) {
   const playStartedAt = getPlayStartedAt();
   const playStep = playing ? currentStep(bpm, playStartedAt) : -1;
   const cellSize = computeCellSize(entry.size.width);
+  const inApp = AwaitEnv.host === 'app';
 
-  if (playing && playStep >= 0) {
+  // Audio side effect: only inside the app. The home-screen widget extension
+  // treats render as a pure function; calling AwaitAudio there freezes the widget.
+  if (inApp && playing && playStep >= 0) {
     const lastPlayedStep = AwaitStore.num('lastPlayedStep', -1);
     if (playStep !== lastPlayedStep) {
       fireStepNotes(cells, playStep);
       AwaitStore.set('lastPlayedStep', playStep);
     }
   }
+
+  // Sweep bar oscillation (home-screen visual indicator). Per-render value swap
+  // + linear 2s animation modifier on the bar = continuous motion via SwiftUI.
+  const showSweep = !inApp && playing;
+  const gridDrawWidth = STEPS * cellSize + 12 * CELL_SPACING_INNER + 3 * CELL_SPACING_GROUP;
+  const sweepFlag = Math.floor(entry.date.getTime() / 2000) % 2 === 0;
+  const sweepBarWidth = 6;
+  const sweepX = sweepFlag ? 0 : Math.max(0, gridDrawWidth - sweepBarWidth);
 
   return (
     <VStack
@@ -195,11 +221,14 @@ function widget(entry: WidgetEntry) {
     >
       <TopBar bpm={bpm} playing={playing}/>
       <Spacer/>
-      <VStack spacing={ROW_SPACING}>
-        {[0, 1, 2, 3].map(r =>
-          <Row row={r} cells={cells} playStep={playStep} cellSize={cellSize}/>
-        )}
-      </VStack>
+      <ZStack alignment='leading'>
+        <VStack spacing={ROW_SPACING}>
+          {[0, 1, 2, 3].map(r =>
+            <Row row={r} cells={cells} playStep={playStep} cellSize={cellSize}/>
+          )}
+        </VStack>
+        {showSweep ? <SweepBar x={sweepX} width={sweepBarWidth}/> : undefined}
+      </ZStack>
     </VStack>
   );
 }
@@ -220,22 +249,38 @@ function fireStepNotes(cells: boolean[], step: number) {
 // ===== Timeline =====
 function widgetTimeline(): Timeline {
   const playing = getPlaying();
+  const ttlBumped = Date.now() - AwaitStore.num('ttl', 0) < 500;
+  const inApp = AwaitEnv.host === 'app';
+
   if (!playing) {
     return {entries: [{date: new Date()}]};
   }
-  const bpm = getBpm();
-  const playStartedAt = getPlayStartedAt();
-  const stepDurMs = stepDurationMs(bpm);
-  const totalSteps = STEPS * MEASURES_TO_SCHEDULE;
 
+  if (inApp) {
+    // Per-step entries to drive audio side effect + per-step playhead in app.
+    const bpm = getBpm();
+    const playStartedAt = getPlayStartedAt();
+    const stepDurMs = stepDurationMs(bpm);
+    const totalSteps = STEPS * MEASURES_TO_SCHEDULE;
+    const entries: Array<{date: Date}> = [];
+    const now = Date.now();
+    for (let i = 0; i < totalSteps; i++) {
+      const t = playStartedAt + i * stepDurMs;
+      if (t < now - 50) continue;
+      entries.push({date: new Date(t)});
+    }
+    if (entries.length === 0 || ttlBumped) entries.unshift({date: new Date()});
+    return {entries};
+  }
+
+  // Home screen: 2-second entries to drive the sweep bar's linear animation.
+  // Generate ~30 minutes of entries; iOS will refresh more if needed.
   const entries: Array<{date: Date}> = [];
   const now = Date.now();
-  for (let i = 0; i < totalSteps; i++) {
-    const t = playStartedAt + i * stepDurMs;
-    if (t < now - 50) continue;
-    entries.push({date: new Date(t)});
+  for (let i = 0; i < 30 * 30; i++) {
+    entries.push({date: new Date(now + i * 2000)});
   }
-  if (entries.length === 0) entries.push({date: new Date()});
+  if (ttlBumped) entries.unshift({date: new Date()});
   return {entries};
 }
 
@@ -245,6 +290,7 @@ function toggleCell(row: number, col: number) {
   const idx = cellIndex(row, col);
   cells[idx] = !cells[idx];
   AwaitStore.set('cells', cells);
+  AwaitStore.set('ttl', Date.now());
 }
 
 function togglePlay() {
@@ -254,12 +300,14 @@ function togglePlay() {
     AwaitStore.set('playStartedAt', 0);
     AwaitStore.set('lastPlayedStep', -1);
     AwaitAudio.setAudioSession(false);
+    AwaitStore.set('ttl', Date.now());
     return;
   }
   AwaitAudio.setAudioSession(true);
   AwaitStore.set('playing', true);
   AwaitStore.set('playStartedAt', Date.now());
   AwaitStore.set('lastPlayedStep', -1);
+  AwaitStore.set('ttl', Date.now());
 }
 
 function backToHead() {
@@ -267,18 +315,21 @@ function backToHead() {
   AwaitStore.set('playStartedAt', 0);
   AwaitStore.set('lastPlayedStep', -1);
   AwaitAudio.setAudioSession(false);
+  AwaitStore.set('ttl', Date.now());
 }
 
 function tempoUp() {
   const bpm = getBpm();
   const next = Math.min(MAX_BPM, bpm + BPM_STEP);
   AwaitStore.set('bpm', next);
+  AwaitStore.set('ttl', Date.now());
 }
 
 function tempoDown() {
   const bpm = getBpm();
   const next = Math.max(MIN_BPM, bpm - BPM_STEP);
   AwaitStore.set('bpm', next);
+  AwaitStore.set('ttl', Date.now());
 }
 
 // ===== App =====
