@@ -176,6 +176,14 @@ function widget(entry: WidgetEntry) {
   const playStep = playing ? currentStep(bpm, playStartedAt) : -1;
   const cellSize = computeCellSize(entry.size.width);
 
+  if (playing && playStep >= 0) {
+    const lastPlayedStep = AwaitStore.num('lastPlayedStep', -1);
+    if (playStep !== lastPlayedStep) {
+      fireStepNotes(cells, playStep);
+      AwaitStore.set('lastPlayedStep', playStep);
+    }
+  }
+
   return (
     <VStack
       spacing={TOP_BAR_GAP}
@@ -197,23 +205,15 @@ function widget(entry: WidgetEntry) {
 }
 
 // ===== Audio =====
-function scheduleLoop(cells: boolean[], bpm: number) {
-  const stepDurMs = stepDurationMs(bpm);
-  for (let measure = 0; measure < MEASURES_TO_SCHEDULE; measure++) {
-    for (let step = 0; step < STEPS; step++) {
-      for (let row = 0; row < ROWS; row++) {
-        if (!cells[cellIndex(row, step)]) continue;
-        const note = ROW_NOTES[row]!;
-        const delay = (measure * STEPS + step) * stepDurMs;
-        AwaitAudio.playNote(note, {
-          soundFont: SOUNDFONT,
-          bank: SOUNDFONT_BANK,
-          volume: NOTE_VOLUME,
-          velocity: NOTE_VELOCITY,
-          delay,
-        });
-      }
-    }
+function fireStepNotes(cells: boolean[], step: number) {
+  for (let row = 0; row < ROWS; row++) {
+    if (!cells[cellIndex(row, step)]) continue;
+    AwaitAudio.playNote(ROW_NOTES[row]!, {
+      soundFont: SOUNDFONT,
+      bank: SOUNDFONT_BANK,
+      volume: NOTE_VOLUME,
+      velocity: NOTE_VELOCITY,
+    });
   }
 }
 
@@ -252,20 +252,20 @@ function togglePlay() {
   if (playing) {
     AwaitStore.set('playing', false);
     AwaitStore.set('playStartedAt', 0);
+    AwaitStore.set('lastPlayedStep', -1);
     AwaitAudio.setAudioSession(false);
     return;
   }
-  const cells = getCells();
-  const bpm = getBpm();
   AwaitAudio.setAudioSession(true);
   AwaitStore.set('playing', true);
   AwaitStore.set('playStartedAt', Date.now());
-  scheduleLoop(cells, bpm);
+  AwaitStore.set('lastPlayedStep', -1);
 }
 
 function backToHead() {
   AwaitStore.set('playing', false);
   AwaitStore.set('playStartedAt', 0);
+  AwaitStore.set('lastPlayedStep', -1);
   AwaitAudio.setAudioSession(false);
 }
 
