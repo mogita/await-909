@@ -1,9 +1,12 @@
 import {
   Button,
   HStack,
+  Icon,
   RoundedRectangle,
   Spacer,
+  Text,
   VStack,
+  ZStack,
 } from 'await';
 
 // ===== Constants =====
@@ -124,6 +127,39 @@ function Row({row, cells, playStep, cellSize}: {
   );
 }
 
+function IconButton({iconName, intent, size}: {
+  iconName: string;
+  intent: IntentInfo;
+  size: number;
+}) {
+  return (
+    <Button fast intent={intent} frame={{width: size, height: size}}>
+      <ZStack>
+        <RoundedRectangle rectRadius={size / 4} fill={COLOR_BUTTON_BG}/>
+        <Icon value={iconName} fontSize={size * 0.5}/>
+      </ZStack>
+    </Button>
+  );
+}
+
+function TopBar({bpm, playing}: {bpm: number; playing: boolean}) {
+  const size = 32;
+  return (
+    <HStack frame={{maxWidth: 'max'}} alignment='center'>
+      <HStack spacing={4}>
+        <IconButton iconName='backward.end.fill' intent={app.backToHead()} size={size}/>
+        <IconButton iconName={playing ? 'pause.fill' : 'play.fill'} intent={app.togglePlay()} size={size}/>
+      </HStack>
+      <Spacer/>
+      <HStack spacing={6}>
+        <Text value={String(bpm)} fontSize={18} fontWeight={700} monospacedDigit/>
+        <IconButton iconName='minus' intent={app.tempoDown()} size={size}/>
+        <IconButton iconName='plus' intent={app.tempoUp()} size={size}/>
+      </HStack>
+    </HStack>
+  );
+}
+
 // ===== Widget =====
 function widget(entry: WidgetEntry) {
   const cells = getCells();
@@ -141,6 +177,7 @@ function widget(entry: WidgetEntry) {
       background={COLOR_CHROME_BG}
       foreground={COLOR_CHROME_FG}
     >
+      <TopBar bpm={bpm} playing={playing}/>
       <Spacer/>
       <VStack spacing={ROW_SPACING}>
         {[0, 1, 2, 3].map(r =>
@@ -159,10 +196,30 @@ function toggleCell(row: number, col: number) {
   AwaitStore.set('cells', cells);
 }
 
+function togglePlay() {
+  // stub — implemented in Task 7
+}
+
+function backToHead() {
+  // stub — implemented in Task 7
+}
+
+function tempoUp() {
+  // stub — implemented in Task 6
+}
+
+function tempoDown() {
+  // stub — implemented in Task 6
+}
+
 // ===== App =====
 const app = Await.define({
   widget,
   widgetIntents: {
     toggleCell,
+    togglePlay,
+    backToHead,
+    tempoUp,
+    tempoDown,
   },
 });
