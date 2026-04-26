@@ -15,14 +15,19 @@ const STEPS = 16;
 const ROWS = 4;
 const MEASURES_TO_SCHEDULE = 8;
 
+// @panel {type:'slider',min:40,max:240,step:5}
 const DEFAULT_BPM = 120;
+// @panel {type:'slider',min:20,max:120,step:5}
 const MIN_BPM = 40;
+// @panel {type:'slider',min:120,max:300,step:5}
 const MAX_BPM = 240;
 const BPM_STEP = 5;
 
 const SOUNDFONT = '/assets/sounds/909.sf2';
 const SOUNDFONT_BANK = 128;
+// @panel {type:'slider',min:0,max:5,step:0.1}
 const NOTE_VOLUME = 2;
+// @panel {type:'slider',min:1,max:127,step:1}
 const NOTE_VELOCITY = 100;
 
 // MIDI note per row, top -> bottom: open hh, closed hh, snare, kick
@@ -40,6 +45,7 @@ const TOP_BAR_GAP = 12;
 const ROW_SPACING = 6;
 const CELL_SPACING_INNER = 3;
 const CELL_SPACING_GROUP = 8;
+// @panel {type:'slider',min:0,max:20,step:1}
 const CELL_RADIUS = 5;
 
 // ===== State read helpers =====
