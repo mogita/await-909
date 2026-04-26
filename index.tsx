@@ -209,6 +209,15 @@ function scheduleLoop(cells: boolean[], bpm: number) {
   }
 }
 
+// ===== Timeline =====
+function widgetTimeline(): Timeline {
+  const playing = getPlaying();
+  if (playing) {
+    return {entries: [{date: new Date()}], update: new Date()};
+  }
+  return {entries: [{date: new Date()}]};
+}
+
 // ===== Intents =====
 function toggleCell(row: number, col: number) {
   const cells = getCells();
@@ -254,6 +263,7 @@ function tempoDown() {
 // ===== App =====
 const app = Await.define({
   widget,
+  widgetTimeline,
   widgetIntents: {
     toggleCell,
     togglePlay,
