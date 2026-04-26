@@ -135,26 +135,28 @@ function Row({row, cells, playStep, cellSize}: {
   );
 }
 
-function SweepBar({width, gridWidth, durationSec}: {
+function SweepBar({x, width, gridWidth, durationSec}: {
+  x: number;
   width: number;
   gridWidth: number;
   durationSec: number;
 }) {
   return (
-    <Color
-      id='sweepbar'
-      value={COLOR_CELL_PLAYHEAD}
-      opacity={0.55}
-      frame={{width}}
+    <ZStack
+      animation={{duration: durationSec}}
+      alignment='leading'
+      frame={{width: gridWidth}}
       maxHeight
-      offset={{x: gridWidth - width}}
-      animation={{
-        type: 'linear',
-        duration: durationSec,
-        autoreverses: true,
-        loop: true,
-      }}
-    />
+    >
+      <Color
+        id='sweepbar'
+        value={COLOR_CELL_PLAYHEAD}
+        opacity={0.55}
+        frame={{width}}
+        maxHeight
+        offset={{x}}
+      />
+    </ZStack>
   );
 }
 
@@ -200,22 +202,15 @@ function widget(entry: WidgetEntry) {
   const playStep = (playing && inApp) ? currentStep(bpm, playStartedAt) : -1;
   const cellSize = computeCellSize(entry.size.width);
 
-  // Audio side effect: only inside the app. The home-screen widget extension
-  // treats render as a pure function; calling AwaitAudio there freezes the widget.
-  if (inApp && playing && playStep >= 0) {
-    const lastPlayedStep = AwaitStore.num('lastPlayedStep', -1);
-    if (playStep !== lastPlayedStep) {
-      fireStepNotes(cells, playStep);
-      AwaitStore.set('lastPlayedStep', playStep);
-    }
-  }
-
   // Sweep bar (home-screen visual indicator). Autonomous SwiftUI animation:
   // looping autoreverse keeps it moving without per-render entries.
   const showSweep = !inApp && playing;
   const gridDrawWidth = STEPS * cellSize + 12 * CELL_SPACING_INNER + 3 * CELL_SPACING_GROUP;
   const sweepBarWidth = 6;
-  const sweepDurationSec = (STEPS * stepDurationMs(bpm)) / 1000;
+  const barDurMs = STEPS * stepDurationMs(bpm);
+  const sweepDurationSec = barDurMs / 1000;
+  const sweepFlag = Math.floor(entry.date.getTime() / barDurMs) % 2 === 0;
+  const sweepX = sweepFlag ? 0 : Math.max(0, gridDrawWidth - sweepBarWidth);
 
   return (
     <VStack
@@ -232,7 +227,7 @@ function widget(entry: WidgetEntry) {
         spacing={ROW_SPACING}
         overlay={showSweep ? {
           alignment: 'leading',
-          content: <SweepBar width={sweepBarWidth} gridWidth={gridDrawWidth} durationSec={sweepDurationSec}/>,
+          content: <SweepBar x={sweepX} width={sweepBarWidth} gridWidth={gridDrawWidth} durationSec={sweepDurationSec}/>,
         } : undefined}
       >
         {[0, 1, 2, 3].map(r =>
@@ -306,12 +301,11 @@ function toggleCell(row: number, col: number) {
   AwaitStore.set('ttl', Date.now());
 }
 
-function togglePlay() {
+async function togglePlay() {
   const playing = getPlaying();
   if (playing) {
     AwaitStore.set('playing', false);
     AwaitStore.set('playStartedAt', 0);
-    AwaitStore.set('lastPlayedStep', -1);
     AwaitAudio.setAudioSession(false);
     AwaitStore.set('ttl', Date.now());
     return;
@@ -319,8 +313,20 @@ function togglePlay() {
   AwaitAudio.setAudioSession(true);
   AwaitStore.set('playing', true);
   AwaitStore.set('playStartedAt', Date.now());
-  AwaitStore.set('lastPlayedStep', -1);
   AwaitStore.set('ttl', Date.now());
+
+  // Sequencer loop. Runs while the playing flag is true; the stop-tap flips
+  // the flag (assuming intents are dispatched concurrently in the runtime),
+  // and the next iteration's check exits the loop.
+  let step = 0;
+  while (getPlaying()) {
+    const cells = getCells();
+    const bpm = getBpm();
+    fireStepNotes(cells, step);
+    AwaitStore.set('ttl', Date.now());
+    await sleep(stepDurationMs(bpm));
+    step = (step + 1) % STEPS;
+  }
 }
 
 function tempoUp() {
