@@ -135,7 +135,11 @@ function Row({row, cells, playStep, cellSize}: {
   );
 }
 
-function SweepBar({x, width}: {x: number; width: number}) {
+function SweepBar({width, gridWidth, durationSec}: {
+  width: number;
+  gridWidth: number;
+  durationSec: number;
+}) {
   return (
     <Color
       id='sweepbar'
@@ -143,8 +147,13 @@ function SweepBar({x, width}: {x: number; width: number}) {
       opacity={0.55}
       frame={{width}}
       maxHeight
-      offset={{x}}
-      animation={{type: 'linear', duration: 2}}
+      offset={{x: gridWidth - width}}
+      animation={{
+        type: 'linear',
+        duration: durationSec,
+        autoreverses: true,
+        loop: true,
+      }}
     />
   );
 }
@@ -169,8 +178,7 @@ function TopBar({bpm, playing}: {bpm: number; playing: boolean}) {
   return (
     <HStack frame={{maxWidth: 'max'}} alignment='center'>
       <HStack spacing={4}>
-        <IconButton iconName='backward.end.fill' intent={app.backToHead()} size={size}/>
-        <IconButton iconName={playing ? 'pause.fill' : 'play.fill'} intent={app.togglePlay()} size={size}/>
+        <IconButton iconName={playing ? 'stop.fill' : 'play.fill'} intent={app.togglePlay()} size={size}/>
       </HStack>
       <Spacer/>
       <HStack spacing={6}>
@@ -202,13 +210,12 @@ function widget(entry: WidgetEntry) {
     }
   }
 
-  // Sweep bar oscillation (home-screen visual indicator). Per-render value swap
-  // + linear 2s animation modifier on the bar = continuous motion via SwiftUI.
+  // Sweep bar (home-screen visual indicator). Autonomous SwiftUI animation:
+  // looping autoreverse keeps it moving without per-render entries.
   const showSweep = !inApp && playing;
   const gridDrawWidth = STEPS * cellSize + 12 * CELL_SPACING_INNER + 3 * CELL_SPACING_GROUP;
-  const sweepFlag = Math.floor(entry.date.getTime() / 2000) % 2 === 0;
   const sweepBarWidth = 6;
-  const sweepX = sweepFlag ? 0 : Math.max(0, gridDrawWidth - sweepBarWidth);
+  const sweepDurationSec = (STEPS * stepDurationMs(bpm)) / 1000;
 
   return (
     <VStack
@@ -227,7 +234,7 @@ function widget(entry: WidgetEntry) {
             <Row row={r} cells={cells} playStep={playStep} cellSize={cellSize}/>
           )}
         </VStack>
-        {showSweep ? <SweepBar x={sweepX} width={sweepBarWidth}/> : undefined}
+        {showSweep ? <SweepBar width={sweepBarWidth} gridWidth={gridDrawWidth} durationSec={sweepDurationSec}/> : undefined}
       </ZStack>
     </VStack>
   );
@@ -273,12 +280,15 @@ function widgetTimeline(): Timeline {
     return {entries};
   }
 
-  // Home screen: 2-second entries to drive the sweep bar's linear animation.
-  // Generate ~30 minutes of entries; iOS will refresh more if needed.
-  const entries: Array<{date: Date}> = [];
+  // Home screen: SwiftUI animation runs autonomously, so we only need to
+  // ensure iOS renders at least once after each intent. A small batch of
+  // future entries (one per bar) keeps the widget alive without flooding.
+  const bpm2 = getBpm();
+  const barDurMs = STEPS * stepDurationMs(bpm2);
+  const entries: Array<{date: Date}> = [{date: new Date()}];
   const now = Date.now();
-  for (let i = 0; i < 30 * 30; i++) {
-    entries.push({date: new Date(now + i * 2000)});
+  for (let i = 1; i <= 12; i++) {
+    entries.push({date: new Date(now + i * barDurMs)});
   }
   if (ttlBumped) entries.unshift({date: new Date()});
   return {entries};
@@ -310,14 +320,6 @@ function togglePlay() {
   AwaitStore.set('ttl', Date.now());
 }
 
-function backToHead() {
-  AwaitStore.set('playing', false);
-  AwaitStore.set('playStartedAt', 0);
-  AwaitStore.set('lastPlayedStep', -1);
-  AwaitAudio.setAudioSession(false);
-  AwaitStore.set('ttl', Date.now());
-}
-
 function tempoUp() {
   const bpm = getBpm();
   const next = Math.min(MAX_BPM, bpm + BPM_STEP);
@@ -339,7 +341,6 @@ const app = Await.define({
   widgetIntents: {
     toggleCell,
     togglePlay,
-    backToHead,
     tempoUp,
     tempoDown,
   },
