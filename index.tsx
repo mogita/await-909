@@ -1,4 +1,9 @@
-import {Text, ZStack} from 'await';
+import {
+  HStack,
+  RoundedRectangle,
+  Spacer,
+  VStack,
+} from 'await';
 
 // ===== Constants =====
 const STEPS = 16;
@@ -72,12 +77,78 @@ function computeCellSize(widgetWidth: number): number {
   return Math.max(8, Math.floor(cellWidth));
 }
 
-// ===== Widget =====
-function widget(_entry: WidgetEntry) {
+// ===== Components =====
+function Cell({row, col, isActive, isOnPlayhead, size}: {
+  row: number;
+  col: number;
+  isActive: boolean;
+  isOnPlayhead: boolean;
+  size: number;
+}) {
+  const fill = isOnPlayhead
+    ? COLOR_CELL_PLAYHEAD
+    : isActive ? COLOR_CELL_ACTIVE : COLOR_CELL_DEFAULT;
   return (
-    <ZStack>
-      <Text value='909'/>
-    </ZStack>
+    <RoundedRectangle
+      rectRadius={CELL_RADIUS}
+      fill={fill}
+      frame={{width: size, height: size}}
+    />
+  );
+}
+
+function Row({row, cells, playStep, cellSize}: {
+  row: number;
+  cells: boolean[];
+  playStep: number;
+  cellSize: number;
+}) {
+  return (
+    <HStack spacing={CELL_SPACING_GROUP}>
+      {[0, 1, 2, 3].map(g =>
+        <HStack spacing={CELL_SPACING_INNER}>
+          {[0, 1, 2, 3].map(c => {
+            const col = g * 4 + c;
+            return (
+              <Cell
+                row={row}
+                col={col}
+                isActive={cells[cellIndex(row, col)] === true}
+                isOnPlayhead={col === playStep}
+                size={cellSize}
+              />
+            );
+          })}
+        </HStack>
+      )}
+    </HStack>
+  );
+}
+
+// ===== Widget =====
+function widget(entry: WidgetEntry) {
+  const cells = getCells();
+  const bpm = getBpm();
+  const playing = getPlaying();
+  const playStartedAt = getPlayStartedAt();
+  const playStep = playing ? currentStep(bpm, playStartedAt) : -1;
+  const cellSize = computeCellSize(entry.size.width);
+
+  return (
+    <VStack
+      spacing={TOP_BAR_GAP}
+      padding={PADDING}
+      maxSides
+      background={COLOR_CHROME_BG}
+      foreground={COLOR_CHROME_FG}
+    >
+      <Spacer/>
+      <VStack spacing={ROW_SPACING}>
+        {[0, 1, 2, 3].map(r =>
+          <Row row={r} cells={cells} playStep={playStep} cellSize={cellSize}/>
+        )}
+      </VStack>
+    </VStack>
   );
 }
 
