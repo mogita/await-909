@@ -236,6 +236,7 @@ function togglePlay() {
 function backToHead() {
   AwaitStore.set('playing', false);
   AwaitStore.set('playStartedAt', 0);
+  AwaitAudio.setAudioSession(false);
 }
 
 function tempoUp() {
