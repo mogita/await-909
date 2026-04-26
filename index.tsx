@@ -196,9 +196,9 @@ function widget(entry: WidgetEntry) {
   const bpm = getBpm();
   const playing = getPlaying();
   const playStartedAt = getPlayStartedAt();
-  const playStep = playing ? currentStep(bpm, playStartedAt) : -1;
-  const cellSize = computeCellSize(entry.size.width);
   const inApp = AwaitEnv.host === 'app';
+  const playStep = (playing && inApp) ? currentStep(bpm, playStartedAt) : -1;
+  const cellSize = computeCellSize(entry.size.width);
 
   // Audio side effect: only inside the app. The home-screen widget extension
   // treats render as a pure function; calling AwaitAudio there freezes the widget.
@@ -228,14 +228,17 @@ function widget(entry: WidgetEntry) {
     >
       <TopBar bpm={bpm} playing={playing}/>
       <Spacer/>
-      <ZStack alignment='leading'>
-        <VStack spacing={ROW_SPACING}>
-          {[0, 1, 2, 3].map(r =>
-            <Row row={r} cells={cells} playStep={playStep} cellSize={cellSize}/>
-          )}
-        </VStack>
-        {showSweep ? <SweepBar width={sweepBarWidth} gridWidth={gridDrawWidth} durationSec={sweepDurationSec}/> : undefined}
-      </ZStack>
+      <VStack
+        spacing={ROW_SPACING}
+        overlay={showSweep ? {
+          alignment: 'leading',
+          content: <SweepBar width={sweepBarWidth} gridWidth={gridDrawWidth} durationSec={sweepDurationSec}/>,
+        } : undefined}
+      >
+        {[0, 1, 2, 3].map(r =>
+          <Row row={r} cells={cells} playStep={playStep} cellSize={cellSize}/>
+        )}
+      </VStack>
     </VStack>
   );
 }
