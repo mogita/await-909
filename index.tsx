@@ -205,11 +205,15 @@ function backToHead() {
 }
 
 function tempoUp() {
-  // stub — implemented in Task 6
+  const bpm = getBpm();
+  const next = Math.min(MAX_BPM, bpm + BPM_STEP);
+  AwaitStore.set('bpm', next);
 }
 
 function tempoDown() {
-  // stub — implemented in Task 6
+  const bpm = getBpm();
+  const next = Math.max(MIN_BPM, bpm - BPM_STEP);
+  AwaitStore.set('bpm', next);
 }
 
 // ===== App =====
