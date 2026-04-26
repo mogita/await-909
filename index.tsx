@@ -2,6 +2,7 @@ import {
   Button,
   HStack,
   Icon,
+  Modifier,
   RoundedRectangle,
   Spacer,
   Text,
@@ -176,6 +177,7 @@ function widget(entry: WidgetEntry) {
       maxSides
       background={COLOR_CHROME_BG}
       foreground={COLOR_CHROME_FG}
+      buttonStyle={buttonStyle}
     >
       <TopBar bpm={bpm} playing={playing}/>
       <Spacer/>
@@ -272,3 +274,16 @@ const app = Await.define({
     tempoDown,
   },
 });
+
+const buttonStyle: CustomButtonStyle = {
+  press: <Modifier
+    geometryGroup
+    scaleEffect={0.92}
+    animation={{type: 'snappy', duration: 0.08}}
+  />,
+  normal: <Modifier
+    geometryGroup
+    scaleEffect={1}
+    animation={{type: 'snappy', duration: 0.4}}
+  />,
+};
