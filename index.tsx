@@ -197,11 +197,19 @@ function toggleCell(row: number, col: number) {
 }
 
 function togglePlay() {
-  // stub — implemented in Task 7
+  const playing = getPlaying();
+  if (playing) {
+    AwaitStore.set('playing', false);
+    AwaitStore.set('playStartedAt', 0);
+    return;
+  }
+  AwaitStore.set('playing', true);
+  AwaitStore.set('playStartedAt', Date.now());
 }
 
 function backToHead() {
-  // stub — implemented in Task 7
+  AwaitStore.set('playing', false);
+  AwaitStore.set('playStartedAt', 0);
 }
 
 function tempoUp() {
