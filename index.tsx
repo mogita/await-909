@@ -198,13 +198,13 @@ function widget(entry: WidgetEntry) {
 
 // ===== Audio =====
 function scheduleLoop(cells: boolean[], bpm: number) {
-  const stepDurSec = stepDurationMs(bpm) / 1000;
+  const stepDurMs = stepDurationMs(bpm);
   for (let measure = 0; measure < MEASURES_TO_SCHEDULE; measure++) {
     for (let step = 0; step < STEPS; step++) {
       for (let row = 0; row < ROWS; row++) {
         if (!cells[cellIndex(row, step)]) continue;
         const note = ROW_NOTES[row]!;
-        const delay = (measure * STEPS + step) * stepDurSec;
+        const delay = (measure * STEPS + step) * stepDurMs;
         AwaitAudio.playNote(note, {
           soundFont: SOUNDFONT,
           bank: SOUNDFONT_BANK,
@@ -220,10 +220,23 @@ function scheduleLoop(cells: boolean[], bpm: number) {
 // ===== Timeline =====
 function widgetTimeline(): Timeline {
   const playing = getPlaying();
-  if (playing) {
-    return {entries: [{date: new Date()}], update: new Date()};
+  if (!playing) {
+    return {entries: [{date: new Date()}]};
   }
-  return {entries: [{date: new Date()}]};
+  const bpm = getBpm();
+  const playStartedAt = getPlayStartedAt();
+  const stepDurMs = stepDurationMs(bpm);
+  const totalSteps = STEPS * MEASURES_TO_SCHEDULE;
+
+  const entries: Array<{date: Date}> = [];
+  const now = Date.now();
+  for (let i = 0; i < totalSteps; i++) {
+    const t = playStartedAt + i * stepDurMs;
+    if (t < now - 50) continue;
+    entries.push({date: new Date(t)});
+  }
+  if (entries.length === 0) entries.push({date: new Date()});
+  return {entries};
 }
 
 // ===== Intents =====
