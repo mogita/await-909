@@ -1,4 +1,5 @@
 import {
+  Button,
   HStack,
   RoundedRectangle,
   Spacer,
@@ -89,11 +90,9 @@ function Cell({row, col, isActive, isOnPlayhead, size}: {
     ? COLOR_CELL_PLAYHEAD
     : isActive ? COLOR_CELL_ACTIVE : COLOR_CELL_DEFAULT;
   return (
-    <RoundedRectangle
-      rectRadius={CELL_RADIUS}
-      fill={fill}
-      frame={{width: size, height: size}}
-    />
+    <Button fast intent={app.toggleCell(row, col)} frame={{width: size, height: size}}>
+      <RoundedRectangle rectRadius={CELL_RADIUS} fill={fill}/>
+    </Button>
   );
 }
 
@@ -152,4 +151,18 @@ function widget(entry: WidgetEntry) {
   );
 }
 
-Await.define({widget});
+// ===== Intents =====
+function toggleCell(row: number, col: number) {
+  const cells = getCells();
+  const idx = cellIndex(row, col);
+  cells[idx] = !cells[idx];
+  AwaitStore.set('cells', cells);
+}
+
+// ===== App =====
+const app = Await.define({
+  widget,
+  widgetIntents: {
+    toggleCell,
+  },
+});
